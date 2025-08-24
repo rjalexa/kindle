@@ -33,7 +33,7 @@ class DatetimeJSONEncoder(json.JSONEncoder):
 def clean_text(text):
     """Clean text by removing extra whitespace and normalizing."""
     # Remove leading/trailing whitespace and normalize internal whitespace
-    return re.sub(r'\s+', ' ', text.strip())
+    return re.sub(r"\s+", " ", text.strip())
 
 
 def parse_date(date_string):
