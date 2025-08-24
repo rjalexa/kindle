@@ -17,3 +17,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 py-modules = ["parser", "utils"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.10",
+]

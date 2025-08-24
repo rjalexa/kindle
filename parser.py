@@ -9,9 +9,9 @@ and converts the highlights and notes into a more readable markdown format.
 
 import argparse
 import json
+import os
 import re
 import logging
-from pprint import pprint
 import dateutil.parser
 
 # Import local modules
@@ -312,16 +312,21 @@ def generate_markdown_output(books, output_file):
 def main():
     """Main function to parse clippings and generate output."""
     parser = argparse.ArgumentParser(description="Parse Kindle clippings file and generate markdown output")
-    parser.add_argument("input_file", nargs='?', default="My Clippings.txt", help="Path to the My Clippings.txt file")
+    parser.add_argument("input_file", nargs='?', default="input/My Clippings.txt", help="Path to the My Clippings.txt file")
     parser.add_argument("-o", "--output", default="clippings.md", help="Output file name (default: clippings.md)")
     parser.add_argument("-j", "--json", action="store_true", help="Also output JSON format")
     
     args = parser.parse_args()
     
     # Parse the clippings file
+    input_file = args.input_file
+    if not os.path.exists(input_file):
+        # Try to find the file in the input directory as fallback
+        input_file = os.path.join("input", os.path.basename(args.input_file))
+    
     try:
-        logger.info(f"Parsing input file: {args.input_file}")
-        with open(args.input_file, "r", encoding='utf-8') as clippings_file:
+        logger.info(f"Parsing input file: {input_file}")
+        with open(input_file, "r", encoding='utf-8') as clippings_file:
             clippings = parse_clippings(clippings_file)
     except FileNotFoundError:
         logger.error(f"File not found: {args.input_file}")
@@ -348,7 +353,7 @@ def main():
         json_output = args.output.replace(".md", ".json")
         logger.info(f"Generating JSON output to: {json_output}")
         with open(json_output, 'w', encoding='utf-8') as f:
-            json.dump(books, f, indent=2, cls=DatetimeJSONEncoder)
+            json.dump(books, f, indent=2, cls=DatetimeJSONEncoder, ensure_ascii=False)
         logger.info("JSON output generated successfully")
     
     logger.info("Processing completed successfully")
