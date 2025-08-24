@@ -272,8 +272,9 @@ def generate_markdown_output(books, output_file):
             
             # Group clippings by type
             highlights = [c for c in clippings if c['metadata']['category'] == "Highlight"]
-            notes = [c for c in clippings if c['metadata']['category'] == "Note"]
-            bookmarks = [c for c in clippings if c['metadata']['category'] == "Bookmark"]
+            # Only include highlights as requested
+            # notes = [c for c in clippings if c['metadata']['category'] == "Note"]
+            # bookmarks = [c for c in clippings if c['metadata']['category'] == "Bookmark"]
             
             if highlights:
                 f.write(f"### Highlights ({len(highlights)})\n\n")
@@ -285,25 +286,26 @@ def generate_markdown_output(books, output_file):
                         f.write(f"   - Page: {highlight['metadata']['page']}\n")
                     f.write("\n")
             
-            if notes:
-                f.write(f"### Notes ({len(notes)})\n\n")
-                for i, note in enumerate(notes, 1):
-                    f.write(f"{i}. {note['content']}\n")
-                    if note['metadata']['location']:
-                        f.write(f"   - Location: {note['metadata']['location']['begin']}-{note['metadata']['location']['end']}\n")
-                    if note['metadata']['page']:
-                        f.write(f"   - Page: {note['metadata']['page']}\n")
-                    f.write("\n")
+            # Skip notes and bookmarks as requested
+            # if notes:
+            #     f.write(f"### Notes ({len(notes)})\n\n")
+            #     for i, note in enumerate(notes, 1):
+            #         f.write(f"{i}. {note['content']}\n")
+            #         if note['metadata']['location']:
+            #             f.write(f"   - Location: {note['metadata']['location']['begin']}-{note['metadata']['location']['end']}\n")
+            #         if note['metadata']['page']:
+            #             f.write(f"   - Page: {note['metadata']['page']}\n")
+            #         f.write("\n")
             
-            if bookmarks:
-                f.write(f"### Bookmarks ({len(bookmarks)})\n\n")
-                for i, bookmark in enumerate(bookmarks, 1):
-                    f.write(f"{i}. Bookmark\n")
-                    if bookmark['metadata']['location']:
-                        f.write(f"   - Location: {bookmark['metadata']['location']['begin']}-{bookmark['metadata']['location']['end']}\n")
-                    if bookmark['metadata']['page']:
-                        f.write(f"   - Page: {bookmark['metadata']['page']}\n")
-                    f.write("\n")
+            # if bookmarks:
+            #     f.write(f"### Bookmarks ({len(bookmarks)})\n\n")
+            #     for i, bookmark in enumerate(bookmarks, 1):
+            #         f.write(f"{i}. Bookmark\n")
+            #         if bookmark['metadata']['location']:
+            #             f.write(f"   - Location: {bookmark['metadata']['location']['begin']}-{bookmark['metadata']['location']['end']}\n")
+            #         if bookmark['metadata']['page']:
+            #             f.write(f"   - Page: {bookmark['metadata']['page']}\n")
+            #         f.write("\n")
             
             f.write("---\n\n")
     
