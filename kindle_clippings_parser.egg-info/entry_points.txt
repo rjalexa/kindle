@@ -1,2 +1,0 @@
-[console_scripts]
-kindle-parser = parser:main
