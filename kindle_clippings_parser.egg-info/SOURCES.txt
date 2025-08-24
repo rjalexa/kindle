@@ -1,0 +1,11 @@
+README.md
+README.txt
+parser.py
+pyproject.toml
+utils.py
+kindle_clippings_parser.egg-info/PKG-INFO
+kindle_clippings_parser.egg-info/SOURCES.txt
+kindle_clippings_parser.egg-info/dependency_links.txt
+kindle_clippings_parser.egg-info/entry_points.txt
+kindle_clippings_parser.egg-info/requires.txt
+kindle_clippings_parser.egg-info/top_level.txt

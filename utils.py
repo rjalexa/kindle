@@ -1,7 +1,9 @@
-"""Various utilies not related to parsing per se."""
+"""Various utilities not related to parsing per se."""
 
 import datetime
 import json
+import re
+import dateutil.parser
 
 
 class BasicEqualityMixin:
@@ -16,13 +18,24 @@ class BasicEqualityMixin:
 
 
 class DatetimeJSONEncoder(json.JSONEncoder):
-    """JSON ecoder that can handle datetime objects.
+    """JSON encoder that can handle datetime objects.
 
-    The datatime will be encoded as a string, in ISO format.
+    The datetime will be encoded as a string, in ISO format.
     """
 
-    def default(self, obj):
-        if isinstance(obj, datetime.datetime):
-            return obj.isoformat()
+    def default(self, o):
+        if isinstance(o, datetime.datetime):
+            return o.isoformat()
         else:
-            return json.JSONEncoder.default(self, obj)
+            return json.JSONEncoder.default(self, o)
+
+
+def clean_text(text):
+    """Clean text by removing extra whitespace and normalizing."""
+    # Remove leading/trailing whitespace and normalize internal whitespace
+    return re.sub(r'\s+', ' ', text.strip())
+
+
+def parse_date(date_string):
+    """Parse a date string into a datetime object."""
+    return dateutil.parser.parse(date_string)

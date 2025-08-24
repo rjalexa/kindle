@@ -1,18 +1,29 @@
-"""Parser for Amazon Kindle clippings file"""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Kindle Clippings Parser
+
+This script parses the "My Clippings.txt" file from Amazon Kindle devices
+and converts the highlights and notes into a more readable markdown format.
+"""
+
 import argparse
 import json
 import re
-import pprint
+import logging
+from pprint import pprint
 import dateutil.parser
 
-from clippings.utils import BasicEqualityMixin
-from clippings.utils import DatetimeJSONEncoder
+# Import local modules
+from utils import BasicEqualityMixin, DatetimeJSONEncoder
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # E.g. Friday, May 13, 2016 11:23:26 PM
 DATETIME_FORMAT = '%A, %B %d, %Y %I:%M:%S %p'
 CLIPPINGS_SEPARATOR = '=========='
-
 
 class Document(BasicEqualityMixin):
     """Document (e.g. book, article) the clipping originates from.
@@ -36,10 +47,13 @@ class Document(BasicEqualityMixin):
     @classmethod
     def parse(cls, line):
         match = re.match(cls.PATTERN, line)
-        title = match.group('title')
-        authors = match.group('authors')
-        return cls(title, authors)
-
+        if match:
+            title = match.group('title')
+            authors = match.group('authors')
+            return cls(title, authors)
+        else:
+            # If pattern doesn't match, assume entire line is title with unknown authors
+            return cls(line.strip(), "Unknown")
 
 class Location(BasicEqualityMixin):
     """Location of the clipping in the document.
@@ -70,10 +84,9 @@ class Location(BasicEqualityMixin):
             end = ranges[1]
         return cls(int(begin), int(end))
 
-
 class Metadata(BasicEqualityMixin):
     """Metadata about the clipping:
-
+    
         - The category of clipping (Note, Highlight, or Bookmark);
         - The location within the document;
         - The timestamp of the clipping;
@@ -121,15 +134,17 @@ class Metadata(BasicEqualityMixin):
     @classmethod
     def parse(cls, line):
         match = re.match(cls.PATTERN, line)
+        if not match:
+            raise ValueError(f"Could not parse metadata line: {line}")
+            
         category = match.group('category')
         location = Location.parse(match.group('location'))
         timestamp = dateutil.parser.parse(match.group('timestamp'))
         try:
             page = int(match.group('page'))
-        except TypeError:
+        except (TypeError, ValueError):
             page = None
         return cls(category, location, timestamp, page)
-
 
 class Clipping(BasicEqualityMixin):
     """Kindle clipping: content associated with a particular document"""
@@ -149,29 +164,33 @@ class Clipping(BasicEqualityMixin):
             'content': self.content,
         }
 
-
 def parse_clippings(clippings_file):
     """Take a file containing clippings, and return a list of objects."""
-
+    
     # Last separator not followed by an entry
     entries = clippings_file.read().split(CLIPPINGS_SEPARATOR)[:-1]
     clippings = []
 
     for entry in entries:
         lines = entry.strip().splitlines()
+        if len(lines) < 3:
+            continue
 
-        document_line = lines[0]
-        document = Document.parse(document_line)
+        try:
+            document_line = lines[0]
+            document = Document.parse(document_line)
 
-        metadata_line = lines[1]
-        metadata = Metadata.parse(metadata_line)
+            metadata_line = lines[1]
+            metadata = Metadata.parse(metadata_line)
 
-        content = '\n'.join(lines[3:])
+            content = '\n'.join(lines[3:]).strip()
 
-        clippings.append(Clipping(document, metadata, content))
+            clippings.append(Clipping(document, metadata, content))
+        except Exception as e:
+            logger.warning(f"Error parsing clipping: {e}")
+            continue
 
     return clippings
-
 
 def as_dicts(clippings):
     """Return the clippings as python dictionaries.
@@ -181,55 +200,158 @@ def as_dicts(clippings):
     """
     return [clipping.to_dict() for clipping in clippings]
 
+def group_clippings_by_book(clippings):
+    """Group clippings by book title.
+    
+    Args:
+        clippings (list): List of clipping dictionaries
+        
+    Returns:
+        dict: Dictionary with book titles as keys and lists of clippings as values
+    """
+    books = {}
+    for clipping in clippings:
+        title = clipping.document.title
+        if title not in books:
+            books[title] = {
+                "author": clipping.document.authors,
+                "clippings": []
+            }
+        books[title]["clippings"].append(clipping)
+    
+    # Sort clippings by location
+    for book in books.values():
+        book["clippings"].sort(key=lambda x: x.metadata.location.begin if hasattr(x.metadata.location, 'begin') else 0)
+    
+    return books
+
+def group_clippings_by_book_dict(clippings_dict):
+    """Group clippings by book title using dictionary format.
+    
+    Args:
+        clippings_dict (list): List of clipping dictionaries
+        
+    Returns:
+        dict: Dictionary with book titles as keys and lists of clippings as values
+    """
+    books = {}
+    for clipping in clippings_dict:
+        title = clipping['document']['title']
+        if title not in books:
+            books[title] = {
+                "author": clipping['document']['authors'],
+                "clippings": []
+            }
+        books[title]["clippings"].append(clipping)
+    
+    # Sort clippings by location
+    for book in books.values():
+        book["clippings"].sort(key=lambda x: int(x['metadata']['location']['begin']) if 'begin' in x['metadata']['location'] else 0)
+    
+    return books
+
+def generate_markdown_output(books, output_file):
+    """Generate markdown output from grouped clippings.
+    
+    Args:
+        books (dict): Dictionary of books with their clippings
+        output_file (str): Path to output file
+    """
+    logger.info(f"Generating markdown output to: {output_file}")
+    
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write("# Kindle Clippings\n\n")
+        
+        for title, book_info in books.items():
+            author = book_info["author"]
+            clippings = book_info["clippings"]
+            
+            f.write(f"## {title}\n")
+            if author and author != "Unknown":
+                f.write(f"**Author:** {author}\n\n")
+            
+            # Group clippings by type
+            highlights = [c for c in clippings if c['metadata']['category'] == "Highlight"]
+            notes = [c for c in clippings if c['metadata']['category'] == "Note"]
+            bookmarks = [c for c in clippings if c['metadata']['category'] == "Bookmark"]
+            
+            if highlights:
+                f.write(f"### Highlights ({len(highlights)})\n\n")
+                for i, highlight in enumerate(highlights, 1):
+                    f.write(f"{i}. {highlight['content']}\n")
+                    if highlight['metadata']['location']:
+                        f.write(f"   - Location: {highlight['metadata']['location']['begin']}-{highlight['metadata']['location']['end']}\n")
+                    if highlight['metadata']['page']:
+                        f.write(f"   - Page: {highlight['metadata']['page']}\n")
+                    f.write("\n")
+            
+            if notes:
+                f.write(f"### Notes ({len(notes)})\n\n")
+                for i, note in enumerate(notes, 1):
+                    f.write(f"{i}. {note['content']}\n")
+                    if note['metadata']['location']:
+                        f.write(f"   - Location: {note['metadata']['location']['begin']}-{note['metadata']['location']['end']}\n")
+                    if note['metadata']['page']:
+                        f.write(f"   - Page: {note['metadata']['page']}\n")
+                    f.write("\n")
+            
+            if bookmarks:
+                f.write(f"### Bookmarks ({len(bookmarks)})\n\n")
+                for i, bookmark in enumerate(bookmarks, 1):
+                    f.write(f"{i}. Bookmark\n")
+                    if bookmark['metadata']['location']:
+                        f.write(f"   - Location: {bookmark['metadata']['location']['begin']}-{bookmark['metadata']['location']['end']}\n")
+                    if bookmark['metadata']['page']:
+                        f.write(f"   - Page: {bookmark['metadata']['page']}\n")
+                    f.write("\n")
+            
+            f.write("---\n\n")
+    
+    logger.info("Markdown output generated successfully")
 
 def main():
-    """Read the provided clippings file, parse it,
-    then print it using the provided format.
-    """
-    outDict = {}
+    """Main function to parse clippings and generate output."""
+    parser = argparse.ArgumentParser(description="Parse Kindle clippings file and generate markdown output")
+    parser.add_argument("input_file", nargs='?', default="My Clippings.txt", help="Path to the My Clippings.txt file")
+    parser.add_argument("-o", "--output", default="clippings.md", help="Output file name (default: clippings.md)")
+    parser.add_argument("-j", "--json", action="store_true", help="Also output JSON format")
+    
+    args = parser.parse_args()
+    
+    # Parse the clippings file
+    try:
+        logger.info(f"Parsing input file: {args.input_file}")
+        with open(args.input_file, "r", encoding='utf-8') as clippings_file:
+            clippings = parse_clippings(clippings_file)
+    except FileNotFoundError:
+        logger.error(f"File not found: {args.input_file}")
+        return
+    except Exception as e:
+        logger.error(f"Error reading file: {e}")
+        return
+    
+    if not clippings:
+        logger.warning("No clippings found in the file")
+        return
+    
+    # Convert to dictionaries for easier handling
+    clip_dicts = as_dicts(clippings)
+    
+    # Group clippings by book using the dictionary format
+    books = group_clippings_by_book_dict(clip_dicts)
+    
+    # Generate markdown output
+    generate_markdown_output(books, args.output)
+    
+    # Optionally generate JSON output
+    if args.json:
+        json_output = args.output.replace(".md", ".json")
+        logger.info(f"Generating JSON output to: {json_output}")
+        with open(json_output, 'w', encoding='utf-8') as f:
+            json.dump(books, f, indent=2, cls=DatetimeJSONEncoder)
+        logger.info("JSON output generated successfully")
+    
+    logger.info("Processing completed successfully")
 
-    clippings_file = open("miniclip.txt", "r")
-    clippings = parse_clippings(clippings_file)
-    clip_dict = as_dicts(clippings)
-
-    pp = pprint.PrettyPrinter(compact=True)
-    for clipping in clip_dict:
-        # prettyprint the clipping just to understand the structure
-        # pp.pprint(clipping)
-        clipType = clipping['metadata']['category']
-        bookTitle = clipping['document']['title']
-        timeStamp = clipping['metadata']['timestamp']
-        highLight = clipping['content']
-
-        # if title is new add to output dictionary and set initial content
-        if clipType == 'Highlight':
-            if bookTitle not in outDict:
-                highLightList = []
-                highLightList.append(highLight)
-                outDict[bookTitle] = {'startdate': timeStamp,
-                                      'enddate': timeStamp,
-                                      'highlight': highLightList,
-                                      }
-            else:
-                # if the title is already here then add new date
-                # if it's newer
-                # and also add the highlighted text
-                # in an array of highlight strings
-                startDate = outDict[bookTitle]['startdate']
-                if startDate < timeStamp:
-                    outDict[bookTitle]['enddate'] = timeStamp
-                outDict[bookTitle]['highlight'].append(highLight)
-
-    # pp.pprint(outDict)
-    for title, data in outDict.items():
-        elapsed = data['enddate'] - data['startdate']
-        hours = elapsed.seconds // 3600
-        minutes = (elapsed.seconds // 60) % 60
-        print('########## ', title, data['startdate'],
-              data['enddate'], ' Elapsed -> ', elapsed.days, ' days, ', hours, ' hours and ', minutes, ' mins.')
-        for l in data['highlight']:
-            print('*** ', l)
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

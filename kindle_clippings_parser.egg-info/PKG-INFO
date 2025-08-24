@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: kindle-clippings-parser
+Version: 0.1.0
+Summary: A parser for Amazon Kindle clippings files that converts highlights and notes into organized markdown format
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: python-dateutil>=2.8.0
